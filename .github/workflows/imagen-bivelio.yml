@@ -1,0 +1,174 @@
+# Imagen de BiVelio: Twenty v2.45.0 con los cambios de esta rama (BIVELIO.md), construida con el
+# Dockerfile del propio Twenty (packages/twenty-docker/twenty/Dockerfile, target «twenty») y publicada
+# en ghcr.io/bivelio/twenty. bivelio-one la usa siempre fijada por digest (infra/prod/crm/compose.yml,
+# x-twenty-image-fork) y solo con CRM_IMAGEN_FORK=1.
+#
+# Etiquetas:
+#   v2.45.0-bivelio-arbol-<12 hex>  inmutable: la imagen de un árbol de código exacto (git HEAD^{tree}).
+#                                   La publica la PR, para que el digest se revise junto al código.
+#   v2.45.0-bivelio                 la de la rama bivelio/v2.45.0. Al fusionar no se vuelve a construir:
+#                                   si ya hay imagen de ese árbol se le pone la etiqueta con skopeo
+#                                   --preserve-digests (mismo digest que se revisó en la PR).
+#
+# Prueba (antes de publicar nada): ningún fichero del servidor compilado contiene «gmail.send»; la
+# lista de scopes no pide gmail.send ni gmail.compose y sí gmail.readonly y calendar.events (es el
+# fichero que lee la guarda crm3-1 de bivelio-one, infra/prod/crm/guardas.sh); y el front está dentro.
+#
+# Sin secretos propios: solo el GITHUB_TOKEN del job, con permiso de escribir paquetes. Una PR desde
+# otro fork construye y prueba, pero no publica.
+name: imagen-bivelio
+
+on:
+  pull_request:
+    branches: ['bivelio/**']
+  push:
+    branches: ['bivelio/v2.45.0']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: imagen-bivelio-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  imagen:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGEN: ghcr.io/bivelio/twenty
+      VERSION: v2.45.0
+      SCOPES: /app/packages/twenty-server/dist/engine/core-modules/auth/utils/get-google-apis-oauth-scopes.js
+      PUBLICA: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+      RAMA: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/bivelio/v2.45.0' }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+
+      - name: Árbol y etiquetas
+        id: arbol
+        run: |
+          arbol="$(git rev-parse 'HEAD^{tree}')"
+          echo "arbol=$arbol" >> "$GITHUB_OUTPUT"
+          echo "etiqueta=${VERSION}-bivelio-arbol-${arbol:0:12}" >> "$GITHUB_OUTPUT"
+          echo "Árbol $arbol → ${IMAGEN}:${VERSION}-bivelio-arbol-${arbol:0:12}"
+
+      - name: Entrar en GHCR
+        if: env.PUBLICA == 'true'
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          printf '%s' "$TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          command -v skopeo >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq skopeo; }
+          printf '%s' "$TOKEN" | skopeo login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+
+      - name: ¿Ya hay imagen de este árbol?
+        id: existe
+        env:
+          ETIQUETA: ${{ steps.arbol.outputs.etiqueta }}
+        run: |
+          if [ "$PUBLICA" = true ] && docker buildx imagetools inspect "$IMAGEN:$ETIQUETA" >/dev/null 2>&1; then
+            echo "si=1" >> "$GITHUB_OUTPUT"
+            echo "Ya existe $IMAGEN:$ETIQUETA: no se vuelve a construir."
+          else
+            echo "si=0" >> "$GITHUB_OUTPUT"
+          fi
+
+      # El runner trae ~14 GB libres; el build de Twenty (dependencias del front y del servidor) necesita más.
+      - name: Hacer sitio en disco
+        if: steps.existe.outputs.si == '0'
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
+
+      - name: Construir (linux/amd64, Dockerfile de Twenty)
+        if: steps.existe.outputs.si == '0'
+        env:
+          ETIQUETA: ${{ steps.arbol.outputs.etiqueta }}
+          ARBOL: ${{ steps.arbol.outputs.arbol }}
+        run: |
+          docker build \
+            --platform linux/amd64 \
+            --target twenty \
+            --file packages/twenty-docker/twenty/Dockerfile \
+            --build-arg APP_VERSION="$VERSION" \
+            --label org.opencontainers.image.source=https://github.com/BiVelio/twenty \
+            --label org.opencontainers.image.url="https://github.com/BiVelio/twenty/tree/bivelio/$VERSION" \
+            --label org.opencontainers.image.version="$VERSION-bivelio" \
+            --label org.opencontainers.image.licenses=AGPL-3.0 \
+            --label org.opencontainers.image.description="Twenty $VERSION de BiVelio: scopes de Google de solo lectura (BIVELIO.md)" \
+            --label com.bivelio.arbol="$ARBOL" \
+            --tag "$IMAGEN:$ETIQUETA" \
+            .
+
+      - name: Traer la imagen ya publicada
+        if: steps.existe.outputs.si == '1'
+        env:
+          ETIQUETA: ${{ steps.arbol.outputs.etiqueta }}
+        run: docker pull --platform linux/amd64 "$IMAGEN:$ETIQUETA"
+
+      - name: Prueba de scopes y contenido
+        env:
+          ETIQUETA: ${{ steps.arbol.outputs.etiqueta }}
+        run: |
+          img="$IMAGEN:$ETIQUETA"
+          set +e
+          docker run --rm --network none --platform linux/amd64 --entrypoint grep "$img" -rl 'gmail.send' /app/packages/twenty-server/dist
+          rc=$?
+          set -e
+          case "$rc" in
+            1) echo "ok: ningún fichero de dist contiene gmail.send" ;;
+            0) echo "::error::la imagen todavía contiene gmail.send (arriba, los ficheros)"; exit 1 ;;
+            *) echo "::error::no se pudo buscar en la imagen (grep salió con $rc)"; exit 1 ;;
+          esac
+          docker run --rm --network none --platform linux/amd64 --entrypoint cat "$img" "$SCOPES" > scopes.js
+          cat scopes.js
+          if grep -qE 'gmail\.(send|compose)' scopes.js; then echo "::error::la lista de scopes pide gmail.send/gmail.compose"; exit 1; fi
+          grep -q 'auth/gmail.readonly' scopes.js || { echo "::error::falta gmail.readonly"; exit 1; }
+          grep -q 'auth/calendar.events' scopes.js || { echo "::error::falta calendar.events"; exit 1; }
+          docker run --rm --network none --platform linux/amd64 --entrypoint test "$img" -f /app/packages/twenty-server/dist/front/index.html ||
+            { echo "::error::la imagen no trae el front (dist/front/index.html)"; exit 1; }
+          [ "$(docker run --rm --network none --platform linux/amd64 --entrypoint printenv "$img" APP_VERSION)" = "$VERSION" ] ||
+            { echo "::error::APP_VERSION no es $VERSION"; exit 1; }
+          echo "ok: scopes de solo lectura, front dentro y APP_VERSION=$VERSION"
+
+      - name: Publicar la imagen del árbol
+        if: env.PUBLICA == 'true' && steps.existe.outputs.si == '0'
+        env:
+          ETIQUETA: ${{ steps.arbol.outputs.etiqueta }}
+        run: docker push "$IMAGEN:$ETIQUETA"
+
+      - name: Etiqueta de la rama (mismo digest)
+        if: env.PUBLICA == 'true' && env.RAMA == 'true'
+        env:
+          ETIQUETA: ${{ steps.arbol.outputs.etiqueta }}
+        run: |
+          skopeo copy --all --preserve-digests "docker://$IMAGEN:$ETIQUETA" "docker://$IMAGEN:$VERSION-bivelio"
+          a="$(skopeo inspect --raw "docker://$IMAGEN:$ETIQUETA" | sha256sum | cut -d' ' -f1)"
+          b="$(skopeo inspect --raw "docker://$IMAGEN:$VERSION-bivelio" | sha256sum | cut -d' ' -f1)"
+          [ "$a" = "$b" ] || { echo "::error::$VERSION-bivelio no quedó con el mismo digest (sha256:$a ≠ sha256:$b)"; exit 1; }
+
+      - name: Digest
+        if: env.PUBLICA == 'true'
+        env:
+          ETIQUETA: ${{ steps.arbol.outputs.etiqueta }}
+          ARBOL: ${{ steps.arbol.outputs.arbol }}
+        run: |
+          digest="sha256:$(skopeo inspect --raw "docker://$IMAGEN:$ETIQUETA" | sha256sum | cut -d' ' -f1)"
+          {
+            echo "### Imagen de BiVelio"
+            echo
+            echo "- Árbol: \`$ARBOL\`"
+            echo "- Etiqueta inmutable: \`$IMAGEN:$ETIQUETA\`"
+            echo "- Para bivelio-one (\`infra/prod/crm/compose.yml\`, \`x-twenty-image-fork\`):"
+            echo
+            echo "\`\`\`"
+            echo "$IMAGEN:$VERSION-bivelio@$digest"
+            echo "\`\`\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "IMAGEN_BIVELIO=$IMAGEN:$VERSION-bivelio@$digest"

@@ -1,0 +1,189 @@
+# BiVelio One — reglas del edge para crm.one.bivelio.com (Twenty v2.45.0).
+# Prototipo validado en local: infra/crm/theme/Caddyfile (t04_theme, t05_iframe).
+#
+# Cómo lo usa el edge (ver README § Edge):
+#   - Caddy compilado con xcaddy + github.com/caddyserver/replace-response.
+#   - Opción global obligatoria:   order replace after encode
+#   - Montajes en el contenedor de Caddy (solo lectura):
+#       /srv/bivelio-one/crm/caddy.snippet → /etc/caddy/engines/crm.snippet
+#       /srv/bivelio-one/crm/theme         → /srv/themes/crm
+#   - Bloque de sitio:
+#       crm.one.bivelio.com {
+#           <forward_auth del edge hacia oauth2-proxy: protege TODO>
+#           import /etc/caddy/engines/crm.snippet
+#       }
+#     Este fichero son directivas sueltas (no un snippet con nombre): se pega
+#     dentro del bloque de sitio. Por el orden de directivas de Caddy,
+#     forward_auth se evalúa antes que los `handle` de aquí.
+#
+# Bypass de forward-auth: NINGUNO (ver README § Bypass). Twenty no recibe
+# webhooks entrantes que One use; el tráfico de servicio (REST/GraphQL/MCP con
+# API key) va por la red docker interna, nunca por este hostname.
+
+# --- Cabeceras de respuesta --------------------------------------------------
+# Twenty ya envía su propia CSP con frame-ancestors (allowedIframeOrigins del
+# workspace, fijado por bootstrap.sh). Esta SEGUNDA CSP se suma (el navegador
+# aplica ambas): repite frame-ancestors por si el workspace se desconfigura y
+# corta fugas a terceros (favicons de twenty-icons.com, logo en
+# twentyhq.github.io, avatares remotos, cualquier fetch externo).
+# No se fija script-src: el index.html de Twenty lleva un <script> inline
+# (window._env_) y se rompería.
+header {
+	+Content-Security-Policy "frame-ancestors 'self' https://one.bivelio.com; img-src 'self' data: blob:; connect-src 'self' wss://crm.one.bivelio.com; object-src 'none'; base-uri 'self'; form-action 'self'"
+	-X-Frame-Options
+	-X-Powered-By
+	Referrer-Policy "strict-origin-when-cross-origin"
+	X-Content-Type-Options "nosniff"
+}
+
+# --- Rutas nunca expuestas a Internet ---------------------------------------
+# /mcp, OAuth dinámico (/oauth/*, descubrimiento /.well-known/oauth-*) y los
+# disparadores de workflows (/webhooks/*) solo por la red interna:
+# el broker MCP de One llama a http://crm-web:3000/mcp con su API key.
+# Cerrado por decisión (crm3-6 y crm3-3; docs/crm/CIERRES-DECIDIDOS.md):
+#   - entrada de avisos desde fuera: /webhooks/* (push de Google y Microsoft,
+#     disparadores de workflows y de funciones) y /s/* (rutas HTTP de funciones
+#     propias). Si algún día hace falta, solo por la red interna y por la puerta
+#     de One, nunca por este hostname;
+#   - Microsoft 365: /auth/microsoft y /auth/microsoft-apis (login y conexión
+#     de correo y calendario);
+#   - tienda de extensiones: /auth/apps/* (OAuth de extensiones),
+#     /application-registration-claim/*, /files/application-registrations/* y
+#     /public-assets/* (ficheros servidos por extensiones).
+@crm_internal_only {
+	path /mcp /mcp/* /oauth/* /.well-known/oauth-* /webhooks/*
+	path /s /s/*
+	path /auth/microsoft /auth/microsoft/* /auth/microsoft-apis /auth/microsoft-apis/*
+	path /auth/apps /auth/apps/* /application-registration-claim /application-registration-claim/*
+	path /files/application-registrations/* /public-assets/*
+}
+handle @crm_internal_only {
+	respond "Not found" 404
+}
+
+# --- Tema BiVelio (CSS por tokens --t-* + fuentes), servido por el edge -----
+handle_path /bivelio/* {
+	root * /srv/themes/crm
+	header Cache-Control "no-cache"
+	file_server
+}
+
+# --- Marca «CRM by BiVelio»: iconos y manifest de Twenty sustituidos ---------
+# Twenty v2.45.0 los referencia por ruta fija (index.html, manifest.json y el
+# logo grande de la pantalla de acceso, auth/components/Logo.tsx →
+# android-launchericon-192-192.png). Se sirven los de theme/brand/ en su lugar.
+# El favicon «vivo» lo pone Twenty con el logo del workspace (bootstrap.sh § 7b).
+handle /images/icons/android/android-launchericon-48-48.png {
+	root * /srv/themes/crm
+	rewrite * /brand/icon-48.png
+	header Cache-Control "no-cache"
+	file_server
+}
+handle /images/icons/android/android-launchericon-192-192.png {
+	root * /srv/themes/crm
+	rewrite * /brand/icon-192.png
+	header Cache-Control "no-cache"
+	file_server
+}
+handle /images/icons/ios/192.png {
+	root * /srv/themes/crm
+	rewrite * /brand/icon-180.png
+	header Cache-Control "no-cache"
+	file_server
+}
+handle /favicon.ico {
+	root * /srv/themes/crm
+	rewrite * /brand/favicon.ico
+	header Cache-Control "no-cache"
+	file_server
+}
+handle /manifest.json {
+	root * /srv/themes/crm
+	rewrite * /brand/manifest.json
+	header Cache-Control "no-cache"
+	file_server
+}
+
+# --- Aplicación --------------------------------------------------------------
+handle {
+	# Solo el documento HTML lleva </head>; assets, JSON y SSE pasan intactos.
+	replace {
+		match {
+			header Content-Type text/html*
+		}
+		# Idioma de las pantallas de acceso: brand/locale.js (script clásico, corre
+		# antes que el módulo de Twenty) fija es-ES si no hay idioma guardado.
+		"<head>" "<head><script src=\"/bivelio/brand/locale.js\" data-bivelio-locale=\"1\"></script>"
+		"<html lang=\"en\"" "<html lang=\"es\""
+		# Marca en el documento (literales de index.html de v2.45.0; si un upgrade
+		# los cambia, no casan y no pasa nada: bootstrap.sh § 8 avisa).
+		"<title>Twenty</title>" "<title>CRM by BiVelio</title>"
+		"content=\"Twenty\"" "content=\"CRM by BiVelio\""
+		"content=\"A modern open-source CRM\"" "content=\"CRM by BiVelio\""
+		"content=\"#000000\"" "content=\"#0D1017\""
+		"https://raw.githubusercontent.com/twentyhq/twenty/main/docs/static/img/social-card.png" "/bivelio/brand/logo-bivelio.png"
+		"</head>" "<link rel=\"stylesheet\" href=\"/bivelio/twenty-theme.css\" data-bivelio-theme=\"1\"><script src=\"/bivelio/brand/brand.js\" defer data-bivelio-brand=\"1\"></script></head>"
+	}
+	# Textos con «Twenty» en los catálogos de idioma (Lingui: locales/generated/<locale>.ts
+	# → /assets/<locale>-<hash>.js, solo datos: JSON.parse(`{"<id>":[…]}`)). Nombres EXACTOS
+	# de la imagen v2.45.0 fijada por digest (sacados de su useLoadCurrentUser-*.js); con
+	# otra versión cambian los hashes, no casa nada y vuelve a verse «Twenty» (nunca rompe
+	# el JS: ver README § Marca). pseudo-en no se toca (solo desarrollo).
+	# Imagen contra la que pasó la prueba de marca (test/marca-imagen.sh). Decisión crm3-7: la
+	# imagen de compose.yml tiene que ser ESTA (lo comprueba apps/web/test/infra-crm-cierres.test.ts)
+	# y solo se cambia cuando la prueba pasa contra la nueva (CI: .github/workflows/crm-marca.yml).
+	# marca-validada: twentycrm/twenty:v2.45.0@sha256:81b6444c146fc39aec5e8de6ff6f996c78714910abf117f129ba78c925690dfd
+	@crm_i18n_chunk {
+		path /assets/af-ZA-ZMKofxyU.js /assets/ar-SA-DqFqaPW8.js /assets/ca-ES-Bb_GbRCB.js /assets/cs-CZ-BGwEgfWz.js
+		path /assets/da-DK-BCOY7WOT.js /assets/de-DE-DxCl195T.js /assets/el-GR-CcCU02uO.js /assets/en-Dj0NZaLc.js
+		path /assets/es-ES-DclZTpMB.js /assets/fi-FI-By6vgxWc.js /assets/fr-FR-DojqjxTA.js /assets/he-IL-BEsdmNJq.js
+		path /assets/hu-HU-Buhjsq1k.js /assets/hy-AM-DadipxMb.js /assets/it-IT-Bmol3_jq.js /assets/ja-JP-CBol1tyZ.js
+		path /assets/ko-KR--JydrFXb.js /assets/nl-NL-Cix3IoEz.js /assets/no-NO-vVuVbNS4.js /assets/pl-PL-DVAocUgE.js
+		path /assets/pt-BR-B-P1gGO0.js /assets/pt-PT-DAkxYDOf.js /assets/ro-RO-DRdijXD7.js /assets/ru-RU-BoVJ3IGV.js
+		path /assets/sr-Cyrl-DzdmGo-i.js /assets/sr-Latn-CZ1bm7Dx.js /assets/sv-SE-Bw1VftvO.js /assets/tr-TR-CUe7yvQu.js
+		path /assets/uk-UA-DJRK38KJ.js /assets/uz-UZ-B-9sm87u.js /assets/vi-VN-FfIx_W5o.js /assets/zh-CN-5RfJvKQ6.js
+		path /assets/zh-TW-GY5riiUB.js
+	}
+	replace @crm_i18n_chunk {
+		# Pantallas de acceso, primero (la cadena entera, anclada a su id):
+		# «Join <workspace> team» / «Únete al equipo de <workspace>»: el workspace se llama
+		# «CRM by BiVelio», así que se dice «Entra en CRM by BiVelio».
+		`"fSPjtl":["Join ",["workspaceName"]," team"]` `"fSPjtl":["Join ",["workspaceName"]]`
+		`"fSPjtl":["Únete al equipo de ",["workspaceName"]]` `"fSPjtl":["Entra en ",["workspaceName"]]`
+		`"nTuObL":["Welcome to Twenty"]` `"nTuObL":["Welcome to CRM by BiVelio"]`
+		`"nTuObL":["Bienvenido a Twenty"]` `"nTuObL":["Bienvenido a CRM by BiVelio"]`
+		# Resto: «Twenty» como palabra → «CRM» (servidor MCP, ayudas, errores de facturación…).
+		# Delante no puede ir letra/dígito/_/- (no toca create-twenty-app, twenty.com, que
+		# además van en minúscula); los ids (6 caracteres base64) no pueden ser «Twenty».
+		re `([^A-Za-z0-9_-])Twenty\b` "${1}CRM"
+	}
+	# Un chunk reescrito no debe quedarse en la caché del navegador con la versión
+	# original: sin validadores del upstream y caché de 1 h (como Work).
+	request_header @crm_i18n_chunk -If-None-Match
+	request_header @crm_i18n_chunk -If-Modified-Since
+	header @crm_i18n_chunk {
+		-ETag
+		-Last-Modified
+		Cache-Control "public, max-age=3600"
+	}
+
+	reverse_proxy crm-web:3000 {
+		# Sin compresión desde el upstream: replace necesita el cuerpo en claro.
+		# (El encode del edge puede comprimir hacia el navegador.)
+		header_up -Accept-Encoding
+		# Cookies de otras apps/la puerta nunca llegan a código de terceros:
+		# sb-* (Supabase), bivelio-* (portal/tema) y la de la puerta
+		# (__Secure-one_gate; _oauth2_proxy por si se vuelve al nombre por defecto),
+		# también con prefijo __Secure-/__Host-. Mismo regex RE2 que desk y work:
+		# [^=;]* no cruza al cookie vecino y la 2.ª regla quita el "; " inicial.
+		# Ajustar si el edge cambia --cookie-name.
+		header_up Cookie `(?:^|;\s*)(?:__Secure-|__Host-)?(?:sb-|bivelio-|one_gate|_oauth2_proxy)[^=;]*=[^;]*` ""
+		header_up Cookie `^;\s*` ""
+		# Las cabeceras de identidad de oauth2-proxy no se reenvían a Twenty.
+		header_up -X-Auth-Request-User
+		header_up -X-Auth-Request-Email
+		header_up -X-Auth-Request-Access-Token
+		# OJO: NO quitar Authorization: el frontend de Twenty manda su propio
+		# "Bearer" (su sesión) a /graphql y /metadata.
+	}
+}

@@ -96,8 +96,6 @@ describe('GoogleApiScopesService', () => {
       const actualGoogleScopes = [
         'https://www.googleapis.com/auth/calendar.events',
         'https://www.googleapis.com/auth/gmail.readonly',
-        'https://www.googleapis.com/auth/gmail.send',
-        'https://www.googleapis.com/auth/gmail.compose',
         'https://www.googleapis.com/auth/profile.emails.read',
         'https://www.googleapis.com/auth/userinfo.email',
         'https://www.googleapis.com/auth/userinfo.profile',
@@ -108,6 +106,17 @@ describe('GoogleApiScopesService', () => {
       const result = includesExpectedScopes(actualGoogleScopes, expectedScopes);
 
       expect(result).toBe(true);
+    });
+
+    // BiVelio (decision crm-4): read-only Gmail plus calendar events, nothing else.
+    it('should request exactly the read-only scopes', () => {
+      expect(getGoogleApisOauthScopes()).toEqual([
+        'email',
+        'profile',
+        'https://www.googleapis.com/auth/gmail.readonly',
+        'https://www.googleapis.com/auth/calendar.events',
+        'https://www.googleapis.com/auth/profile.emails.read',
+      ]);
     });
   });
 });

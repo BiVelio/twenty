@@ -141,7 +141,13 @@ jobs:
         if: env.PUBLICA == 'true' && steps.existe.outputs.si == '0'
         env:
           ETIQUETA: ${{ steps.arbol.outputs.etiqueta }}
-        run: docker push "$IMAGEN:$ETIQUETA"
+        # El paquete ghcr.io/bivelio/twenty ya existe (lo creó el mirror privado one-twenty): este repo solo
+        # puede escribir en él si el paquete se lo permite (Package settings › Manage Actions access).
+        run: |
+          if ! docker push "$IMAGEN:$ETIQUETA"; then
+            echo "::error::GHCR no deja publicar a BiVelio/twenty en $IMAGEN. Un admin de la organización: GitHub › BiVelio › Packages › twenty › Package settings › Manage Actions access › añadir BiVelio/twenty con rol Write, y volver a lanzar este job."
+            exit 1
+          fi
 
       - name: Etiqueta de la rama (mismo digest)
         if: env.PUBLICA == 'true' && env.RAMA == 'true'

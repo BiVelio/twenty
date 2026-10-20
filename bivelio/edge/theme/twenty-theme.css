@@ -1,0 +1,245 @@
+/* ==========================================================================
+   twenty-theme.css — tema BiVelio para Twenty v2.45.0 (núcleo SIN modificar, D20)
+
+   Se inyecta como <link rel="stylesheet" href="/bivelio/twenty-theme.css">
+   justo antes de </head> por el proxy (Caddy replace-response, ver Caddyfile).
+   Solo redefine variables --t-* de Twenty; no toca selectores de componentes.
+
+   Especificidad: Twenty declara sus tokens en `.light` / `.dark` (0,1,0) y en
+   bloques @supports (display-p3, corner-shape). Aquí se usa `html.light` /
+   `html.dark` (0,1,1): gana siempre, se cargue antes o después.
+
+   Fuente de los valores: kit aprobado bivelio.css (gpos-main 4ddf63d69d):
+     oscuro  background #0D1017  card #141824  muted #181D2A  accent #1F2533
+             border #262C3B  foreground #EEF1F6  muted-fg #98A1B3
+     claro   background #FDFDFD  card #FFFFFF  muted #F4F6F9  accent #ECEFF3
+             border #DEE4E7  foreground #0F1218  muted-fg #5A6070
+     primary (branding en vivo, ambos temas) #6B8AFA = hsl(227 93% 70%)
+     radios  sm 10px · md 12px · lg 14px     fuentes Inter / JetBrains Mono
+   Contrato de tokens joven (#26482, 2026-09-24): revisar en cada upgrade
+   (tests/acceptance/t04_theme.py hace las capturas de control).
+   ========================================================================== */
+
+/* JetBrains Mono autoalojada (OFL-1.1, @fontsource/jetbrains-mono 5.3.0).
+   Inter ya viene empaquetada en Twenty (/assets/inter-*.woff2): no se carga. */
+@font-face { font-family: "JetBrains Mono"; font-style: normal; font-weight: 400; font-display: swap;
+  src: url(/bivelio/fonts/jetbrains-mono-latin-400-normal.woff2) format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: "JetBrains Mono"; font-style: normal; font-weight: 400; font-display: swap;
+  src: url(/bivelio/fonts/jetbrains-mono-latin-ext-400-normal.woff2) format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF; }
+@font-face { font-family: "JetBrains Mono"; font-style: normal; font-weight: 500; font-display: swap;
+  src: url(/bivelio/fonts/jetbrains-mono-latin-500-normal.woff2) format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: "JetBrains Mono"; font-style: normal; font-weight: 500; font-display: swap;
+  src: url(/bivelio/fonts/jetbrains-mono-latin-ext-500-normal.woff2) format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF; }
+
+/* --- Comunes a ambos temas ------------------------------------------------ */
+html.light, html.dark {
+  --t-font-family: "Inter", system-ui, -apple-system, sans-serif;
+  --t-code-font-family: "JetBrains Mono", ui-monospace, monospace;
+  /* Radios del kit: sm 10 · md 12 · lg 14 (xs se deja pequeño para iconos/checkbox) */
+  --t-border-radius-xs: 4px;
+  --t-border-radius-sm: 10px;
+  --t-border-radius-sm-round: 10px;
+  --t-border-radius-md: 12px;
+  --t-border-radius-md-round: 12px;
+  --t-border-radius-lg: 14px;
+  --t-border-radius-xl: 20px;
+  /* Twenty aplica corner-shape: superellipse (squircle) en Chromium; el kit es redondo */
+  --t-corner-shape: round;
+  --t-color-blue: #6B8AFA;
+}
+
+/* --- Claro (globals.css :root) -------------------------------------------- */
+html.light {
+  --t-background-primary: #FFFFFF;          /* card */
+  --t-background-secondary: #FDFDFD;        /* background */
+  --t-background-tertiary: #F4F6F9;         /* muted / secondary */
+  --t-background-quaternary: #ECEFF3;       /* accent */
+  --t-background-danger: #FBEAEA;
+  --t-background-transparent-blue: #6B8AFA1F;
+  --t-background-inverted-primary: #0F1218;
+  --t-background-inverted-secondary: #5A6070;
+  --t-background-primary-inverted: #0F1218;
+  --t-background-primary-inverted-hover: #2A2F3A;
+
+  --t-font-color-primary: #0F1218;          /* foreground */
+  --t-font-color-secondary: #5A6070;        /* muted-foreground */
+  --t-font-color-tertiary: #7C8293;
+  --t-font-color-light: #A3A9B8;
+  --t-font-color-extra-light: #C5CAD3;
+  --t-font-color-inverted: #FFFFFF;
+  --t-font-color-danger: #B91C1C;           /* destructive */
+
+  --t-border-color-strong: #C9D1D6;
+  --t-border-color-medium: #DEE4E7;         /* border */
+  --t-border-color-light: #ECEFF3;
+  --t-border-color-inverted: #0F1218;
+  --t-border-color-secondary-inverted: #5A6070;
+  --t-border-color-blue: #AABCFC;
+
+  --t-gray-scale-gray1: #FFFFFF;  --t-gray-scale-gray2: #FDFDFD;  --t-gray-scale-gray3: #F8F9FB;
+  --t-gray-scale-gray4: #F4F6F9;  --t-gray-scale-gray5: #ECEFF3;  --t-gray-scale-gray6: #DEE4E7;
+  --t-gray-scale-gray7: #C5CAD3;  --t-gray-scale-gray8: #A3A9B8;  --t-gray-scale-gray9: #7C8293;
+  --t-gray-scale-gray10: #6A7081; --t-gray-scale-gray11: #5A6070; --t-gray-scale-gray12: #0F1218;
+
+  /* Escala de acento a partir de primary #6B8AFA */
+  --t-accent-accent1: #FBFCFF;  --t-accent-accent2: #F5F7FF;  --t-accent-accent3: #ECF0FF;
+  --t-accent-accent4: #E1E8FF;  --t-accent-accent5: #D3DDFF;  --t-accent-accent6: #C2CFFE;
+  --t-accent-accent7: #AABCFC;  --t-accent-accent8: #8CA3FB;  --t-accent-accent9: #6B8AFA;
+  --t-accent-accent10: #5A7BF5; --t-accent-accent11: #3F5FD9; --t-accent-accent12: #1E2B5C;
+  --t-accent-primary: #D3DDFF;  --t-accent-secondary: #D3DDFF;
+  --t-accent-tertiary: #ECF0FF; --t-accent-quaternary: #F5F7FF;
+  --t-accent-accent3570: #8CA3FB; --t-accent-accent4060: #8CA3FB;
+  --t-buttons-secondary-text-color: #3F5FD9;
+
+  --t-box-shadow-color: #0F121808;
+  --t-box-shadow-light: 0 1px 2px 0 #0F12180A;          /* card-shadow */
+  --t-box-shadow-strong: 0 10px 15px -3px #0F12181A, 0 4px 6px -4px #0F12181A;
+}
+
+/* --- Oscuro (globals.css .dark, el tema por defecto de BiVelio) ------------ */
+html.dark {
+  --t-background-primary: #141824;          /* card */
+  --t-background-secondary: #0D1017;        /* background */
+  --t-background-tertiary: #181D2A;         /* muted / secondary */
+  --t-background-quaternary: #1F2533;       /* accent */
+  --t-background-danger: #3A1D24;
+  --t-background-transparent-blue: #6B8AFA24;
+  --t-background-inverted-primary: #EEF1F6;
+  --t-background-inverted-secondary: #98A1B3;
+  --t-background-primary-inverted: #EEF1F6;
+  --t-background-primary-inverted-hover: #C9CFDA;
+
+  --t-font-color-primary: #EEF1F6;          /* foreground */
+  --t-font-color-secondary: #98A1B3;        /* muted-foreground */
+  --t-font-color-tertiary: #7A8396;
+  --t-font-color-light: #5E6678;
+  --t-font-color-extra-light: #3E4557;
+  --t-font-color-inverted: #0D1017;
+  --t-font-color-danger: #FF8A8A;           /* destructive */
+
+  --t-border-color-strong: #353C4E;
+  --t-border-color-medium: #262C3B;         /* border */
+  --t-border-color-light: #1C2130;
+  --t-border-color-inverted: #EEF1F6;
+  --t-border-color-secondary-inverted: #98A1B3;
+  --t-border-color-blue: #364A83;
+
+  --t-gray-scale-gray1: #0D1017;  --t-gray-scale-gray2: #141824;  --t-gray-scale-gray3: #161B27;
+  --t-gray-scale-gray4: #181D2A;  --t-gray-scale-gray5: #1F2533;  --t-gray-scale-gray6: #262C3B;
+  --t-gray-scale-gray7: #3E4557;  --t-gray-scale-gray8: #5E6678;  --t-gray-scale-gray9: #7A8396;
+  --t-gray-scale-gray10: #868FA2; --t-gray-scale-gray11: #98A1B3; --t-gray-scale-gray12: #EEF1F6;
+
+  --t-accent-accent1: #0F131D;  --t-accent-accent2: #131A2B;  --t-accent-accent3: #18203A;
+  --t-accent-accent4: #1C2748;  --t-accent-accent5: #233158;  --t-accent-accent6: #2B3C6B;
+  --t-accent-accent7: #364A83;  --t-accent-accent8: #4560A6;  --t-accent-accent9: #6B8AFA;
+  --t-accent-accent10: #7F9BFB; --t-accent-accent11: #A9BBFD; --t-accent-accent12: #DCE4FF;
+  --t-accent-primary: #233158;  --t-accent-secondary: #233158;
+  --t-accent-tertiary: #18203A; --t-accent-quaternary: #131A2B;
+  --t-accent-accent3570: #4560A6; --t-accent-accent4060: #4560A6;
+  --t-buttons-secondary-text-color: #A9BBFD;
+
+  --t-box-shadow-color: #00000059;
+  --t-box-shadow-light: 0 1px 2px 0 #00000059;          /* card-shadow (.dark) */
+  --t-box-shadow-strong: 0 10px 15px -3px #00000066, 0 4px 6px -4px #00000066;
+}
+
+/* Fondo previo al arranque de React (index.html usa prefers-color-scheme) */
+html.light, html.light body { background-color: #FDFDFD; }
+html.dark, html.dark body { background-color: #0D1017; }
+
+/* ==========================================================================
+   Marca «CRM by BiVelio» (ver brand/brand.js y caddy.snippet)
+   Twenty no ofrece ajustes para esto: el nombre y el logo del workspace los
+   fija bootstrap.sh por la API; aquí solo lo que no se puede configurar.
+   ========================================================================== */
+
+/* Geist y Onest autoalojadas (OFL-1.1, subconjunto latino; fonts/LICENSE.txt y fonts/OFL-*.txt) */
+@font-face { font-family: "Geist"; font-style: normal; font-weight: 500 600; font-display: swap;
+  src: url(/bivelio/fonts/geist.woff2) format("woff2"); }
+@font-face { font-family: "Onest"; font-style: normal; font-weight: 400 600; font-display: swap;
+  src: url(/bivelio/fonts/onest.woff2) format("woff2"); }
+
+/* Wordmark en el título de acceso: «CRM» (Geist 600, texto en degradado) +
+   « by BiVelio» (Onest 500, atenuado). brand.js marca el elemento. */
+html[data-bivelio-auth] [data-bivelio-wordmark] {
+  font-size: 0 !important;
+  color: transparent !important;
+  line-height: normal;
+  white-space: nowrap;
+}
+html[data-bivelio-auth] [data-bivelio-wordmark]::before,
+html[data-bivelio-auth] [data-bivelio-wordmark]::after {
+  display: inline-block;
+  font-size: 28px;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  white-space: pre;
+}
+html[data-bivelio-auth] [data-bivelio-wordmark]::before {
+  content: "CRM";
+  font-family: "Geist", "Inter", system-ui, sans-serif;
+  font-weight: 600;
+  background: linear-gradient(122deg, var(--t-font-color-primary) 0%, var(--t-font-color-primary) 18%, var(--t-font-color-secondary) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+html[data-bivelio-auth] [data-bivelio-wordmark]::after {
+  content: " by BiVelio";
+  font-family: "Onest", "Inter", system-ui, sans-serif;
+  font-weight: 500;
+  color: var(--t-font-color-secondary);
+}
+
+/* Un solo logo en el acceso. Twenty v2.45.0 (auth/components/Logo.tsx) pinta el
+   logo grande (android-launchericon-192-192.png, que el edge sirve con el isotipo
+   BV) y, encima, en la esquina, una insignia pequeña con el logo del workspace
+   (también BV, lo sube bootstrap.sh): se veía la BV dos veces. Se oculta la
+   insignia y se deja el grande.
+   1) Clases de linaria de v2.45.0 (StyledContainer > StyledSecondaryLogoContainer,
+      Logo-*.css de la imagen fijada); 2) por estructura, por si una versión nueva
+      cambia los hashes: el hermano del logo grande dentro del mismo contenedor. */
+.si03ohs > .sztoge { display: none !important; }
+html[data-bivelio-auth] div:has(> div[style*="android-launchericon-192-192"]) > div:not(:first-child),
+html[data-bivelio-auth] div:has(> a > div[style*="android-launchericon-192-192"]) > div:not(:first-child) {
+  display: none !important;
+}
+
+/* Enlaces legales de twenty.com (condiciones/privacidad/DPA de SU nube, no de
+   esta instancia) en el pie del acceso: se ocultan con su contenedor. */
+a[href^="https://twenty.com/"][href$="/terms"],
+a[href^="https://twenty.com/"][href$="/privacy-policy"],
+a[href="https://twenty.com/legal/dpa"] { display: none !important; }
+/* El pie de workspace (FooterNote.tsx) puede llevar también el botón «Bypass SSO»:
+   si lo lleva, solo se ocultan los enlaces y separadores, nunca el botón. */
+div:has(> a[href^="https://twenty.com/"][href$="/privacy-policy"]):not(:has(> button)) { display: none !important; }
+div:has(> a[href^="https://twenty.com/"][href$="/privacy-policy"]):has(> button) > span { display: none !important; }
+/* Variante fuera de workspace («By using Twenty, you agree to the … DPA»): sin botones. */
+div:has(> a[href="https://twenty.com/legal/dpa"]):not(:has(> button)) { display: none !important; }
+
+/* Aviso AGPL-3.0 (código fuente de la versión desplegada, decisión crm-1): en todas
+   las rutas. En el acceso, como pie; dentro de la app, más pequeño y por debajo de
+   cualquier capa de Twenty (z-index 1). NO quitar: ver README § Marca y licencia. */
+#bivelio-source {
+  position: fixed;
+  right: 12px;
+  bottom: 10px;
+  z-index: 1;
+  font: 500 11px/1.4 "Onest", "Inter", system-ui, sans-serif;
+  color: var(--t-font-color-tertiary, #7A8396);
+  text-decoration: none;
+  opacity: 0.8;
+}
+#bivelio-source:hover { text-decoration: underline; opacity: 1; }
+html:not([data-bivelio-auth]) #bivelio-source {
+  right: 8px;
+  bottom: 2px;
+  font-size: 10px;
+  opacity: 0.55;
+}
+@media print { #bivelio-source { display: none; } }

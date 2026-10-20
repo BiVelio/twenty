@@ -1,0 +1,15 @@
+Fuentes autoalojadas en este directorio — SIL Open Font License, Version 1.1
+(https://openfontlicense.org). Se redistribuyen sin modificar (subconjuntos woff2
+tal cual los sirve Google Fonts / @fontsource); no se venden por sí solas.
+
+Onest: Copyright 2021 The Onest Project Authors (https://github.com/simpals/onest)
+  ficheros: onest.woff2
+  licencia completa y aviso: OFL-Onest.txt
+
+Geist: Copyright 2024 The Geist Project Authors (https://github.com/vercel/geist-font)
+  ficheros: geist.woff2
+  licencia completa y aviso: OFL-Geist.txt
+
+JetBrains Mono: Copyright 2020 The JetBrains Mono Project Authors (https://github.com/JetBrains/JetBrainsMono)
+  ficheros: jetbrains-mono-latin-400-normal.woff2, jetbrains-mono-latin-500-normal.woff2, jetbrains-mono-latin-ext-400-normal.woff2, jetbrains-mono-latin-ext-500-normal.woff2
+  licencia completa y aviso: OFL-JetBrainsMono.txt

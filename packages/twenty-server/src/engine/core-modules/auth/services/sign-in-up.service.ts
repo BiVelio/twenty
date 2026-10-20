@@ -36,7 +36,10 @@ import {
   compareHash,
   hashPassword,
 } from 'src/engine/core-modules/auth/auth.util';
-import { MAX_WORKSPACES_WITHOUT_ENTERPRISE_KEY } from 'src/engine/core-modules/auth/constants/max-workspaces-without-organization-key.constants';
+import {
+  BIVELIO_MAX_WORKSPACES_ENV_NAME,
+  resolveMaxWorkspacesWithoutEnterpriseKey,
+} from 'src/engine/core-modules/auth/utils/resolve-max-workspaces-without-enterprise-key.util';
 import { getSignUpWithoutWorkspaceDecision } from 'src/engine/core-modules/auth/utils/get-sign-up-without-workspace-decision.util';
 import { hasProvisionedSignUpDestination } from 'src/engine/core-modules/auth/utils/has-provisioned-sign-up-destination.util';
 import { DEFAULT_DPA_REGION } from 'src/engine/core-modules/dpa/config/dpa-region-config.constant';
@@ -573,12 +576,24 @@ export class SignInUpService {
       return;
     }
 
-    if (workspaceCount < MAX_WORKSPACES_WITHOUT_ENTERPRISE_KEY) {
+    // BiVelio: the cap is configurable (BIVELIO_MAX_WORKSPACES, default 5).
+    const { limit: maxWorkspaces, invalidValue } =
+      resolveMaxWorkspacesWithoutEnterpriseKey(
+        process.env[BIVELIO_MAX_WORKSPACES_ENV_NAME],
+      );
+
+    if (isDefined(invalidValue)) {
+      this.logger.warn(
+        `${BIVELIO_MAX_WORKSPACES_ENV_NAME} is not a whole number >= 1, keeping the default limit of ${maxWorkspaces} workspaces`,
+      );
+    }
+
+    if (workspaceCount < maxWorkspaces) {
       return;
     }
 
     throw new AuthException(
-      `Cannot create more than ${MAX_WORKSPACES_WITHOUT_ENTERPRISE_KEY} workspaces without a valid enterprise key`,
+      `Cannot create more than ${maxWorkspaces} workspaces without a valid enterprise key`,
       AuthExceptionCode.FORBIDDEN_EXCEPTION,
       {
         userFriendlyMessage: msg`Workspace limit reached. A valid Organization key is required to create more workspaces.`,
